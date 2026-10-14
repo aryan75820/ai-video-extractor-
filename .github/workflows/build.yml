@@ -1,0 +1,38 @@
+name: Build APK from ZIP
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract zip
+        run: |
+          unzip -o *.zip -d project
+          cp -rn project/* . || true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Setup Keystore
+        run: |
+          mkdir -p .build-cache
+          keytool -genkeypair -keystore .build-cache/release.keystore -storepass android123 -alias aivideoextractor -keypass android123 -keyalg RSA -keysize 3072 -validity 10000 -dname "CN=AI Video Extractor,OU=Mobile,O=AI Video Extractor,L=Local,ST=Local,C=US"
+          cat << 'PROP' > .build-cache/release-signing.properties
+          storeFile=.build-cache/release.keystore
+          storePassword=android123
+          keyAlias=aivideoextractor
+          keyPassword=android123
+          PROP
+      - name: Download Gradle
+        run: |
+          mkdir -p .build-cache
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.11.1-bin.zip -o .build-cache/gradle-8.11.1-bin.zip
+          unzip -q .build-cache/gradle-8.11.1-bin.zip -d .build-cache/
+      - name: Build APK
+        run: ./.build-cache/gradle-8.11.1/bin/gradle --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Release-APK
+          path: app/build/outputs/apk/release/*.apk
+          
